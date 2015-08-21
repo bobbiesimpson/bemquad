@@ -72,7 +72,8 @@ namespace bemquad {
     /// Calculate the ratio of cell areas according to numer / denom
     double ratio(const Cell2D& numer, const Cell2D& denom)
     {
-        return ((numer.upperU - numer.lowerU) * (numer.upperV - numer.lowerV)) / ((denom.upperU - denom.lowerU) * (denom.upperV - denom.lowerV));
+        return ((numer.upperU - numer.lowerU) * (numer.upperV - numer.lowerV))
+        / ((denom.upperU - denom.lowerU) * (denom.upperV - denom.lowerV));
     }
     
     /// This class is capable of integrating a given function to a prescribed
@@ -96,16 +97,18 @@ namespace bemquad {
                                      const double b,
                                      const double c,
                                      const double d,
-                                     const F& fun,
+                                     F& fun,
                                      const double tol,
-                                     const uint nmax,
-                                     const uint nmin,
+                                     const AdaptivityType adapt = AdaptivityType::LOCAL,
+                                     const uint nmax = 20,
+                                     const uint nmin = 1,
                                      const double sratio = 5.0)
         :
         mUInterval(std::make_pair(a,b)),
         mVInterval(std::make_pair(c,d)),
         mFunctor(fun),
         mTol(tol),
+        mAdaptivity(adapt),
         mNmax(nmax),
         mNmin(nmin),
         mSubDivideRatio(sratio)
@@ -114,6 +117,14 @@ namespace bemquad {
                 throw std::runtime_error("Invalid interval: a must be less than b");
             if(c > d)
                 throw std::runtime_error("Invalid interval: c must be less than d");
+        }
+        
+        /// Clear the cached data
+        void clear()
+        {
+            mFuncCacheMap.clear();
+            mPreviousResult = 0.0;
+            mCurrentResult = 0.0;
         }
         
         /// Try and integrate until converged.
@@ -136,6 +147,12 @@ namespace bemquad {
             //reset(); // if we change the functor, reset all data
             mFunctor = f;
         }
+        
+        /// Adaptivity type getter
+        const AdaptivityType adaptivityType() const { return mAdaptivity; }
+        
+        /// Adaptivity type setter
+        void setAdaptivity(const AdaptivityType t) { mAdaptivity = t; }
         
     protected:
         
@@ -229,11 +246,14 @@ namespace bemquad {
         /// v-coordinate interval
         std::pair<double, double> mVInterval;
         
-        /// The function we are integrating.
-        F mFunctor;
+        /// Reference to the function we are integrating.
+        F& mFunctor;
         
         /// The tolerance we are aiming for with the quadrature scheme
         const double mTol;
+        
+        /// Local or global adaptivity flag.
+        AdaptivityType mAdaptivity;
         
         /// Maximum number of levels of quadrature
         const uint mNmax;
@@ -252,6 +272,7 @@ namespace bemquad {
         
         /// The current integral approximation
         T mCurrentResult;
+
         
     };
     
@@ -287,10 +308,10 @@ namespace bemquad {
         if(std::abs(currentResult() - previousResult()) / std::abs(previousResult()) < tolerance()
            &&
            next_cell.level >= minLevelN()) {
-             std::cout << "Converged at cell level " << next_cell.level << "\n";
+             //std::cout << "Converged at cell level " << next_cell.level << "\n";
             return;
         }
-        else if(next_cell.level < 3){ // If current cell level < 3, we cannot subdivide.
+        else if(next_cell.level < 3 || AdaptivityType::GLOBAL == adaptivityType()){ // If current cell level < 3, we cannot subdivide.
             globalRecursiveEval(next_cell);
             return;
         }
@@ -330,13 +351,13 @@ namespace bemquad {
                 for(const auto& i : localrefine)
                     localRecursiveEval(fine_vec[i]);
                 for(const auto& i : globalrefine) {
-                    std::cout << "local refinement of cell index: " << i << "\n";
+                    //std::cout << "local refinement of cell index: " << i << "\n";
                     globalRecursiveEval(fine_vec[i]);
                 }
                 return;
             }
             else {
-                std::cout << "no local refinement applied. Carrying on...\n";
+                //std::cout << "no local refinement applied. Carrying on...\n";
                 globalRecursiveEval(next_cell);
                 return;
             }
@@ -394,10 +415,11 @@ namespace bemquad {
                             const double d,
                             F fun,
                             const double tol = 1.0e-3,
+                            const AdaptivityType adapt = AdaptivityType::LOCAL,
                             const uint nmax = 20,
                             const uint nmin = 1) -> decltype(fun(a,c))
     {
-        return AdaptiveClenshaw2DIntegrator<decltype(fun(a,c)), F>(a,b,c,d,fun,tol,nmax,nmin).eval();
+        return AdaptiveClenshaw2DIntegrator<decltype(fun(a,c)), F>(a,b,c,d,fun,tol,adapt,nmax,nmin).eval();
     }
     
     

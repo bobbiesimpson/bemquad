@@ -269,7 +269,30 @@ namespace bemquad
         return newpvec;
     }
 	
+    double scalePt(const double xi, const double a, const double b)
+    {
+        return xi * (b - a) * 0.5 + 0.5 * (a + b);
+    }
+    
+    DPair scalePt(const std::pair<double, double>& xi,
+                  const std::pair<double, double>& ulimits,
+                  const std::pair<double, double>& vlimits)
+    {
+        return std::make_pair(scalePt(xi.first, ulimits.first, ulimits.second), scalePt(xi.second, vlimits.first, vlimits.second));
+    }
 	
+    std::pair<double, double> scaleToParentInterval(const std::pair<double, double>& p,
+                                                    const std::pair<double, double>& ulimits,
+                                                    const std::pair<double, double>& vlimits)
+    {
+        const double urange = ulimits.second - ulimits.first;
+        const double umid = 0.5 * (ulimits.second + ulimits.first);
+        const double vrange = vlimits.second - vlimits.first;
+        const double vmid = 0.5 * (vlimits.second + vlimits.first);
+        return std::make_pair(2.0 / urange * (p.first - umid),
+                              2.0 / vrange * (p.second - vmid));
+    }
+    
 	QPt IQuadrature::get() const
 	{
 		auto lpair = currentLocalIndices();

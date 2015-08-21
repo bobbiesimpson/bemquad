@@ -20,7 +20,19 @@ namespace bemquad
     
     /// Scale the quadrature points and weights to the interval [a,b]
     DPairVec scalePts(const DPairVec& pvec, const double a, const double b);
-	
+    
+    /// Scale a single point in domain [-1,1] to [a,b]
+    double scalePt(const double xi, const double a, const double b);
+    
+    DPair scalePt(const std::pair<double, double>& xi,
+                  const std::pair<double, double>& ulimits,
+                  const std::pair<double, double>& vlimits);
+    
+    /// Scale a point with given limits to the parent interval [-1,1]x[-1,1]
+    std::pair<double, double> scaleToParentInterval(const std::pair<double, double>& p,
+                                                    const std::pair<double, double>& ulimits,
+                                                    const std::pair<double, double>& vlimits);
+    
 	///
 	/// Simple struct for holding a two-dimensional quadrature point
 	///
