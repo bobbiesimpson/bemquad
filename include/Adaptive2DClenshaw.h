@@ -34,7 +34,8 @@ namespace bemquad {
         lowerV(vlower),
         upperV(vupper),
         level(l),
-        value(v) {}
+        value(v),
+        parent(nullptr) {}
         
         /// Lower limit of u-coordinate
         double lowerU;
@@ -54,10 +55,22 @@ namespace bemquad {
         /// The current approximation of the integrand over the cell.
         double value;
         
+        /// Reference to parent (nil if no parent)
+        Cell2D* parent;
+        
+        /// References to children (nil if no children)
+        std::vector<Cell2D*> children;
+        
     };
     
+    /// Are the ranges of the two cells equal?
+    bool equalRange(const Cell2D& c1, const Cell2D& c2)
+    {
+        return c1.lowerU == c2.lowerU && c1.upperU == c2.upperU && c1.lowerV == c2.lowerV && c1.upperV == c2.upperV;
+    }
+    
     /// Subdivide a 2D cell uniformly into four cells of equal area
-    std::vector<Cell2D> subdivide(const Cell2D& cell)
+    std::vector<Cell2D> subdivide(Cell2D& cell)
     {
         assert(cell.level > 0);
         const double midu = 0.5 * (cell.upperU + cell.lowerU);
@@ -66,7 +79,50 @@ namespace bemquad {
         Cell2D se(midu, cell.upperU, cell.lowerV, midv, cell.level -1);
         Cell2D nw(cell.lowerU, midu, midv, cell.upperV, cell.level - 1);
         Cell2D ne(midu, cell.upperU, midv, cell.upperV, cell.level - 1);
-        return {sw, se, nw, ne};
+        std::vector<Cell2D> subcells{sw, se, nw, ne};
+        for(auto& c : subcells) {
+            c.parent = &cell;
+            cell.children.push_back(&c);
+        }
+        return subcells;
+    }
+    
+    /// Generate a subcell that is formed from the 'centre' of the
+    /// interval of the given cell. It is used to check for singularities
+    /// that may lie near the midpoint of the cell.
+    Cell2D centreSubcell(const Cell2D& cell)
+    {
+        assert(cell.level > 0);
+        const double u_h = 0.25 * (cell.upperU - cell.lowerU);
+        const double v_h = 0.25 * (cell.upperV - cell.lowerV);
+        return Cell2D(cell.lowerU + u_h,
+                      cell.upperU - u_h,
+                      cell.lowerV + v_h,
+                      cell.upperV - v_h,
+                      cell.level - 1);
+    }
+    
+    /// Return the set of cell that correspond to the set intersection of the given cell
+    /// and the 'centre' sub cell defined by the function above
+    std::vector<Cell2D> rimCells(const Cell2D& cell)
+    {
+        const uint ncell = 4;
+        const double u_h = 1.0 / ncell * (cell.upperU - cell.lowerU);
+        const double v_h = 1.0 / ncell * (cell.upperV - cell.lowerV);
+
+        std::vector<Cell2D> rvec;
+        for(uint i = 0; i < ncell; ++i) {
+            const double lower_u = cell.lowerU + i * u_h;
+            const double upper_u = lower_u + u_h;
+            for(uint j = 0; j < ncell; ++j) {
+                if((1 == i || 2 == i) && (1 == j || 2 == j))
+                    continue;
+                const double lower_v = cell.lowerV + j * v_h;
+                const double upper_v = lower_v + v_h;
+                rvec.push_back(Cell2D(lower_u, upper_u, lower_v, upper_v, cell.level -1));
+            }
+        }
+        return rvec;
     }
     
     /// Calculate the ratio of cell areas according to numer / denom
@@ -182,10 +238,15 @@ namespace bemquad {
         { return scalePts(clenshawRule(order), a, b); }
         
         /// Recursively evaluate the cell until global convergence is acheived.
-        void globalRecursiveEval(const Cell2D& cell);
+        void globalRecursiveEval(Cell2D& cell);
         
         /// Recursively evaluate the cell until local convergence is acheived.
-        void localRecursiveEval(const Cell2D& cell);
+        void localRecursiveEval(Cell2D& cell);
+        
+        /// Given two cell of differing levels of quadrature order, perform
+        /// adaptive h-refinement until convergence is achieved.
+        void adaptiveRecursiveEval(Cell2D& coarse,
+                                   Cell2D& fine);
         
         /// Get the function value at the given quadrature point. Uses cache.
         T evalFunc(const double u, const double v)
@@ -283,16 +344,30 @@ namespace bemquad {
     template<typename T, typename F>
     T AdaptiveClenshaw2DIntegrator<T,F>::eval()
     {
-        const uint base_level = 0;
-        Cell2D base_cell(lowerU(), upperU(), lowerV(), upperV(), base_level);
-        evalCell(base_cell);
-        setCurrentResult(base_cell.value);
-        globalRecursiveEval(base_cell);
+        // Perform one subdivision to deal with singularity at midpoint case
+        const uint base_level = 1;
+        Cell2D base(lowerU(), upperU(), lowerV(), upperV(), base_level);
+        auto subcells = subdivide(base);
+        double integral = 0.0;
+        for(auto & c : subcells) {
+            evalCell(c);
+            integral += c.value;
+        }
+        setCurrentResult(integral);
+        for(auto& c : subcells)
+            globalRecursiveEval(c);
+        
+//        const uint base_level = 0;
+//        Cell2D base_cell(lowerU(), upperU(), lowerV(), upperV(), base_level);
+//        evalCell(base_cell);
+//        setCurrentResult(base_cell.value);
+//        globalRecursiveEval(base_cell);
+        
         return currentResult();
     }
     
     template<typename T, typename F>
-    void AdaptiveClenshaw2DIntegrator<T,F>::globalRecursiveEval(const Cell2D& cell)
+    void AdaptiveClenshaw2DIntegrator<T,F>::globalRecursiveEval(Cell2D& cell)
     {
         if(cell.level > maxLevelN())
         {
@@ -309,6 +384,7 @@ namespace bemquad {
            &&
            next_cell.level >= minLevelN()) {
              //std::cout << "Converged at cell level " << next_cell.level << "\n";
+            //std::cout << "converged with cell ratio: " << ratio(Cell2D(lowerU(), upperU(), lowerV(), upperV()), cell) << "\n";
             return;
         }
         else if(next_cell.level < 3 || AdaptivityType::GLOBAL == adaptivityType()){ // If current cell level < 3, we cannot subdivide.
@@ -318,54 +394,135 @@ namespace bemquad {
         else {
             // check for local errors of subcells and subdivide
             // as appropriate.
-            auto coarse_vec = subdivide(cell);
-            for(auto& c : coarse_vec)
-                evalCell(c);
-            auto fine_vec = subdivide(next_cell);
-            for(auto& c : fine_vec)
-                evalCell(c);
-            assert(coarse_vec.size() == fine_vec.size());
-            
-            // now check for error differences between subcells
-            double min_error = std::numeric_limits<double>::max();
-            std::vector<double> error_vec;
-            double finecell_sum = 0.0;
-            for(uint c = 0; c < 4; ++c) {
-                const double error = std::abs(coarse_vec[c].value - fine_vec[c].value) / std::abs(coarse_vec[c].value);
-                if(error < min_error)
-                    min_error = error;
-                error_vec.push_back(error);
-                finecell_sum += fine_vec[c].value;
-            }
-            
-            // generate vectors of cell for local/global refinement
-            std::vector<uint> localrefine, globalrefine;
-            for(uint c = 0; c < 4; ++c) {
-                if(error_vec[c] > subDivideRatio() * min_error)
-                    globalrefine.push_back(c);
-                else
-                    localrefine.push_back(c);
-            }
-            if(globalrefine.size() > 0) {
-                setCurrentResult(currentResult() - next_cell.value + finecell_sum);
-                for(const auto& i : localrefine)
-                    localRecursiveEval(fine_vec[i]);
-                for(const auto& i : globalrefine) {
-                    //std::cout << "local refinement of cell index: " << i << "\n";
-                    globalRecursiveEval(fine_vec[i]);
-                }
-                return;
-            }
-            else {
-                //std::cout << "no local refinement applied. Carrying on...\n";
-                globalRecursiveEval(next_cell);
-                return;
-            }
+            adaptiveRecursiveEval(cell, next_cell);
         }
     }
     
     template<typename T, typename F>
-    void AdaptiveClenshaw2DIntegrator<T,F>::localRecursiveEval(const Cell2D& cell)
+    void AdaptiveClenshaw2DIntegrator<T,F>::adaptiveRecursiveEval(Cell2D& coarse,
+                                                                  Cell2D& fine)
+    {
+        assert(equalRange(coarse, fine)); // make sure the ranges are equal
+        auto coarse_vec = subdivide(coarse);
+        for(auto& c : coarse_vec)
+            evalCell(c);
+        auto fine_vec = subdivide(fine);
+        for(auto& c : fine_vec) {
+            evalCell(c);
+        }
+        assert(coarse_vec.size() == fine_vec.size());
+        
+        // now check for error differences between subcells
+        double min_error = std::numeric_limits<double>::max();
+        std::vector<double> error_vec;
+        double finecell_sum = 0.0;
+        double coarsecell_sum = 0.0;
+        for(uint c = 0; c < 4; ++c) {
+            const double error = std::abs(coarse_vec[c].value - fine_vec[c].value) / std::abs(coarse_vec[c].value);
+            if(error < min_error)
+                min_error = error;
+            error_vec.push_back(error);
+            finecell_sum += fine_vec[c].value;
+            coarsecell_sum += coarse_vec[c].value;
+        }
+        
+        // generate vectors of cell for local/global refinement
+        std::vector<uint> localrefine, globalrefine;
+        for(uint c = 0; c < 4; ++c) {
+            if(error_vec[c] > subDivideRatio() * min_error)
+                globalrefine.push_back(c);
+            else
+                localrefine.push_back(c);
+        }
+        if(globalrefine.size() > 0) {
+            setCurrentResult(currentResult() - fine.value + finecell_sum);
+            for(const auto& i : localrefine)
+                localRecursiveEval(fine_vec[i]);
+            for(const auto& i : globalrefine) {
+                //std::cout << "local refinement of cell index: " << i << "\n";
+                globalRecursiveEval(fine_vec[i]);
+            }
+            return;
+        }
+        else {
+            
+            // let's see if the error on the current cell is much larger than
+            // the error seen in its near neighbours
+            Cell2D* parent = fine.parent;
+            double cell_error = 0.0;
+            double min_e = std::numeric_limits<double>::max();
+            for(uint i = 0; i < 4; ++i) {
+                Cell2D c = *parent->children[i];
+                c.level = coarse.level;
+                evalCell(c);
+                Cell2D f = c;
+                f.level = fine.level;
+                evalCell(f);
+                const double e = std::abs(f.value - c.value) / std::abs(f.value);
+                if(equalRange(f, fine))
+                    cell_error = e;
+                else {
+                    if(e < min_e)
+                        min_e = e;
+                }
+            }
+            if(cell_error > subDivideRatio() * min_e) {
+                setCurrentResult(currentResult() - fine.value + finecell_sum);
+                for(auto& c : fine_vec)
+                    globalRecursiveEval(c);
+                return;
+            }
+            else {
+                globalRecursiveEval(fine);
+                return;
+            }
+        
+            // let's try subdivsion centred around the midpoint of the integration domain
+            // to cope with singularities that might lie near to the midpoint.
+           /*auto centre_coarse = centreSubcell(coarse);
+            evalCell(centre_coarse);
+            auto centre_fine = centreSubcell(fine);
+            evalCell(centre_fine);
+            const double coarse_rim_val = coarse.value - centre_coarse.value;
+            const double fine_rim_val = fine.value - centre_fine.value;
+            
+//            auto rim_cells_coarse = rimCells(coarse);
+//            double coarse_rim_val = 0.0;
+//            for(auto& c : rim_cells_coarse) {
+//                evalCell(c);
+//                coarse_rim_val += c.value;
+//            }
+//            auto rim_cells_fine = rimCells(fine);
+//            double fine_rim_val = 0.0;
+//            for(auto& c : rim_cells_fine) {
+//                evalCell(c);
+//                fine_rim_val += c.value;
+//            }
+            
+            const double centre_error = std::abs(centre_fine.value - centre_coarse.value) / std::abs(centre_fine.value);
+            const double rim_error = std::abs(fine_rim_val - coarse_rim_val) / std::abs(fine_rim_val);
+            
+            if(centre_error > subDivideRatio() * rim_error) {
+                std::cout << "Subdividing from midpoint\n";
+                setCurrentResult(currentResult() - fine.value + finecell_sum);
+                for(auto& c : fine_vec)
+                    globalRecursiveEval(c);
+                return;
+//
+//                globalRecursiveEval(centre_fine);
+//                for(auto& c : rim_cells_fine)
+//                    localRecursiveEval(c);
+//                return;
+            }
+            else*/
+//                globalRecursiveEval(fine);
+//                return;
+//            }
+        }
+    }
+    
+    template<typename T, typename F>
+    void AdaptiveClenshaw2DIntegrator<T,F>::localRecursiveEval(Cell2D& cell)
     {
         // the idea is that we recursively refine and only terminate when 'local' convergence
         // is achieved.
