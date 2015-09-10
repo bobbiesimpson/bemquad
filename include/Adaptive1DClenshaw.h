@@ -3,6 +3,8 @@
 
 #include "IQuadrature.h"
 
+#include <mutex>
+
 namespace bemquad {
     
     /// A struct which hold all the necessary information for a 'cell' that represents
@@ -103,18 +105,23 @@ namespace bemquad {
         
     private:
         
+        /// Static mutex member
+        static std::mutex sMutex;
+        
         /// Static map of quadrature rules. Allows for efficient caching.
         static std::map<uint, DPairVec> sQRuleCache;
         
         /// Get the clenshaw curtis rule for a given order
         static DPairVec clenshawRule(const uint order)
         {
+            std::lock_guard<std::mutex> lock(sMutex);
             uint neworder = (order < 3) ? order : 3.0 * std::pow(2.0, order - 3);
             auto it = sQRuleCache.find(neworder);
             if(it != sQRuleCache.end())
                 return it->second;
             else {
                 //std::cout << "Generating CC rule with " << neworder + 1 << " points\n";
+
                 auto i = sQRuleCache.insert(std::make_pair(neworder, clenshawCurtisRule(neworder + 1)));
                 if(false == i.second)
                     throw std::runtime_error("Could not insert quadrature rule");
@@ -203,11 +210,16 @@ namespace bemquad {
         
         /// The current approximation to the integral
         T mCurrentResult;
+
     };
     
     /// Define the static cache map for storing quadrature rules.
     template<typename T, typename F>
     std::map<uint, DPairVec> AdaptiveClenshaw1DIntegrator<T,F>::sQRuleCache;
+    
+    /// Define the static mutex
+    template<typename T, typename F>
+    std::mutex AdaptiveClenshaw1DIntegrator<T,F>::sMutex;
     
     
     template<typename T, typename F>

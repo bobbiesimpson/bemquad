@@ -10,6 +10,7 @@
 #define ADAPTIVE_2D_CLENSHAW_H
 
 #include <map>
+#include <mutex>
 
 #include "common.h"
 #include "IQuadrature.h"
@@ -210,9 +211,13 @@ namespace bemquad {
         /// Adaptivity type setter
         void setAdaptivity(const AdaptivityType t) { mAdaptivity = t; }
         
+        
     protected:
         
     private:
+        
+        /// Static mutex member
+        static std::mutex sMutex;
         
         /// Static map of quadrature rules. Allows for efficient caching.
         static std::map<uint, DPairVec> sQRuleCache;
@@ -220,6 +225,7 @@ namespace bemquad {
         /// Get the clenshaw curtis rule for a given order
         static DPairVec clenshawRule(const uint order)
         {
+            std::lock_guard<std::mutex> lock(sMutex);
             uint neworder = (order < 3) ? order : 3.0 * std::pow(2.0, order - 3);
             auto it = sQRuleCache.find(neworder);
             if(it != sQRuleCache.end())
@@ -336,6 +342,9 @@ namespace bemquad {
 
         
     };
+    
+    template<typename T, typename F>
+    std::mutex AdaptiveClenshaw2DIntegrator<T,F>::sMutex;
     
     /// Define the static cache map for storing quadrature rules.
     template<typename T, typename F>

@@ -126,8 +126,10 @@ namespace bemquad {
             }
             const double rho = 0.5 * (eta_n + 1.0) * rhohat;
             const double polarjacob = 0.25 * (upperTheta() - lowerTheta()) * rhohat;
-            const auto parentpair = std::make_pair(localSrcPtXi() + rho * std::cos(theta),
+            auto parentpair = std::make_pair(localSrcPtXi() + rho * std::cos(theta),
                                                   localSrcPtEta() + rho * std::sin(theta));
+            trimToParentInterval(parentpair.first, parentpair.second, tolerance());
+
             const auto glbpair = scalePt(parentpair, ulimits(), vlimits());
             return functor()(glbpair.first, glbpair.second) * rho * polarjacob * jacobDet();
         }
@@ -290,6 +292,9 @@ namespace bemquad {
         /// Source coordinate, v-direction
         double sourceV() { return mSrcCoords.second; }
         
+        /// Non const functor getter
+        F& functor() { return mFunctor; }
+        
         /// u-coordinate interval
         std::pair<double, double> mUInterval;
         
@@ -324,11 +329,13 @@ namespace bemquad {
     {
         const double tol = DEFAULT_TOLERANCE;
         T sum = 0.0;
+
         // E polar interval
         if(!essentiallyEqual(upperU(), sourceU(), tol)) {
             PolarFunctor<F> t1(ulimits(), vlimits(), glbSrcPt(), functor(), PolarDir::E);
             sum += adaptive2DClenshaw(-1.0, 1.0, -1.0, 1.0, t1, tolerance(), adaptivityType(), maxLevelN(), minLevelN());
         }
+
         //std::cout << sum << "\n";
         
         // N polar interval
@@ -336,6 +343,7 @@ namespace bemquad {
             PolarFunctor<F> t1( ulimits(), vlimits(), glbSrcPt(),functor(), PolarDir::N);
             sum += adaptive2DClenshaw(-1.0, 1.0, -1.0, 1.0, t1, tolerance(), adaptivityType(), maxLevelN(), minLevelN());
         }
+        
         //std::cout << sum << "\n";
         // W polar interval
         if(!essentiallyEqual(lowerU(), sourceU(), tol)) {

@@ -40,6 +40,16 @@ namespace bemquad
 		return fabs( a - b ) <= ( ( fabs( a ) > fabs( b ) ? fabs( b ) : fabs( a ) ) * epsilon );
 	}
     
+    /// Trim a value to tval if |v| > tval and v == tval
+    template< class T >
+    void trimToParentInterval(T& a, T& b, const T& epsilon)
+    {
+        if(essentiallyEqual(std::abs(a), 1.0, epsilon))
+            a = a / std::abs(a);
+        if(essentiallyEqual(std::abs(b), 1.0, epsilon))
+            b = b / std::abs(b);
+    }
+    
 	
 }
 
