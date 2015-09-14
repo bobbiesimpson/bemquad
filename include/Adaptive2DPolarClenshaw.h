@@ -128,7 +128,12 @@ namespace bemquad {
             const double polarjacob = 0.25 * (upperTheta() - lowerTheta()) * rhohat;
             auto parentpair = std::make_pair(localSrcPtXi() + rho * std::cos(theta),
                                                   localSrcPtEta() + rho * std::sin(theta));
-            trimToParentInterval(parentpair.first, parentpair.second, tolerance());
+            if(std::abs(parentpair.first) > 1.0)
+                parentpair.first = std::abs(parentpair.first) / parentpair.first;
+            if(std::abs(parentpair.second) > 1.0)
+                parentpair.second = std::abs(parentpair.second) / parentpair.second;
+            
+//            trimToParentInterval(parentpair.first, parentpair.second, tolerance());
 
             const auto glbpair = scalePt(parentpair, ulimits(), vlimits());
             return functor()(glbpair.first, glbpair.second) * rho * polarjacob * jacobDet();

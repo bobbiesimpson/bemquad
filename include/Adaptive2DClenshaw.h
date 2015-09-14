@@ -11,9 +11,13 @@
 
 #include <map>
 #include <mutex>
+#include <limits>
 
 #include "common.h"
 #include "IQuadrature.h"
+
+
+
 
 namespace bemquad {
     
@@ -283,6 +287,14 @@ namespace bemquad {
             cell.value = eval(cell.level, cell.lowerU, cell.upperU, cell.lowerV, cell.upperV);
         }
         
+        T relative_error(T a, T b)
+        {
+            if((std::abs(a) < DEFAULT_TOLERANCE) && (std::abs(b) < DEFAULT_TOLERANCE))
+                return std::max(std::abs((a - b) / (1.0 + a)), std::abs((a - b) / (1.0 + b)));
+            else
+                return std::max(std::abs((a - b) / (a)), std::abs((a - b) / (b)));
+        }
+        
         /// Lower limit, u-direction
         double lowerU() { return mUInterval.first; }
         
@@ -389,7 +401,7 @@ namespace bemquad {
         setCurrentResult(currentResult() - cell.value + next_cell.value);
         
         // check for global convergence
-        if(std::abs(currentResult() - previousResult()) / std::abs(previousResult()) < tolerance()
+        if(relative_error(currentResult(), previousResult())/*(std::abs(currentResult() - previousResult()) / std::abs(previousResult()))*/ < tolerance()
            &&
            next_cell.level >= minLevelN()) {
              //std::cout << "Converged at cell level " << next_cell.level << "\n";
@@ -428,6 +440,7 @@ namespace bemquad {
         double coarsecell_sum = 0.0;
         for(uint c = 0; c < 4; ++c) {
             const double error = std::abs(coarse_vec[c].value - fine_vec[c].value) / std::abs(coarse_vec[c].value);
+            //const double error = relative_error(coarse_vec[c].value, fine_vec[c].value);
             if(error < min_error)
                 min_error = error;
             error_vec.push_back(error);
@@ -467,6 +480,7 @@ namespace bemquad {
                 Cell2D f = c;
                 f.level = fine.level;
                 evalCell(f);
+                //const double e = relative_error(c.value, f.value);
                 const double e = std::abs(f.value - c.value) / std::abs(f.value);
                 if(equalRange(f, fine))
                     cell_error = e;
