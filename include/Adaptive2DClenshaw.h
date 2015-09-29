@@ -398,6 +398,9 @@ namespace bemquad {
             /// TODO: write a function for determining the nearest point (within a certain tolerance)
             /// and then pass this approximate point to the polar version of this integrator.
             
+            /// Actually, I don't want to call it here - instead, I want to call the polar transformation when
+            /// the number of local subdivisions haas reached a maximum.
+            
             throw std::runtime_error("Reaced maximum number of levels in adaptive quadrature.");
         }
         setPreviousResult(currentResult());
