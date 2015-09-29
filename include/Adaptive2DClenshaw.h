@@ -143,7 +143,7 @@ namespace bemquad {
     ///
     /// It is designed primarily for non-singular and nearly singular
     /// BE integrals. It has particulary advantages when integrating
-    /// oscillatory integrands over conventional a GL approach.
+    /// oscillatory integrands over a conventional GL approach.
     ///
     /// For strongly singular integrands, the polar transformation version
     /// of this class should be used (AdaptivePolarClenshaw2DIntegrator).
@@ -392,6 +392,15 @@ namespace bemquad {
     {
         if(cell.level > maxLevelN())
         {
+            /// We haven't converged, so let's try integrating with a polar transformation
+            /// using an approximate nearest point.
+            
+            /// TODO: write a function for determining the nearest point (within a certain tolerance)
+            /// and then pass this approximate point to the polar version of this integrator.
+            
+            /// Actually, I don't want to call it here - instead, I want to call the polar transformation when
+            /// the number of local subdivisions haas reached a maximum.
+            
             throw std::runtime_error("Reaced maximum number of levels in adaptive quadrature.");
         }
         setPreviousResult(currentResult());
