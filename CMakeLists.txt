@@ -30,6 +30,6 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 ADD_LIBRARY(bemquad SHARED ${bemquad_sources} ${bemquad_headers})
 
 # setup testing
-INCLUDE(CTEST)
+INCLUDE(CTest)
 ADD_SUBDIRECTORY("${CMAKE_CURRENT_SOURCE_DIR}/tests")
 ENABLE_TESTING()

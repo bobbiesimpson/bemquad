@@ -97,7 +97,7 @@ namespace bemquad {
         
         /// Given a parent coordinate from the integrator, return the function value
         /// (along with any jacobian determinants) of the transformed integrand.
-        auto operator()(const double xi, const double eta) -> decltype(functor()(xi,eta))
+        auto operator()(const double xi, const double eta) -> decltype(this->functor()(xi,eta))
         {
             double xi_n = xi;
             double eta_n = eta;
