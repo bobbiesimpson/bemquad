@@ -24,6 +24,7 @@ namespace bemquad {
     /// A representation of a two-dimensional interval defined over
     /// the integration domain.
     
+    template<typename T>
     struct Cell2D {
       
         /// Constructor
@@ -58,7 +59,7 @@ namespace bemquad {
         uint level;
         
         /// The current approximation of the integrand over the cell.
-        double value;
+        T value;
         
         /// Reference to parent (nil if no parent)
         Cell2D* parent;
@@ -69,22 +70,24 @@ namespace bemquad {
     };
     
     /// Are the ranges of the two cells equal?
-    bool equalRange(const Cell2D& c1, const Cell2D& c2)
+    template<typename T>
+    bool equalRange(const Cell2D<T>& c1, const Cell2D<T>& c2)
     {
         return c1.lowerU == c2.lowerU && c1.upperU == c2.upperU && c1.lowerV == c2.lowerV && c1.upperV == c2.upperV;
     }
     
     /// Subdivide a 2D cell uniformly into four cells of equal area
-    std::vector<Cell2D> subdivide(Cell2D& cell)
+    template<typename T>
+    std::vector<Cell2D<T>> subdivide(Cell2D<T>& cell)
     {
         assert(cell.level > 0);
         const double midu = 0.5 * (cell.upperU + cell.lowerU);
         const double midv = 0.5 * (cell.upperV + cell.lowerV);
-        Cell2D sw(cell.lowerU, midu, cell.lowerV, midv, cell.level - 1);
-        Cell2D se(midu, cell.upperU, cell.lowerV, midv, cell.level -1);
-        Cell2D nw(cell.lowerU, midu, midv, cell.upperV, cell.level - 1);
-        Cell2D ne(midu, cell.upperU, midv, cell.upperV, cell.level - 1);
-        std::vector<Cell2D> subcells{sw, se, nw, ne};
+        Cell2D<T> sw(cell.lowerU, midu, cell.lowerV, midv, cell.level - 1);
+        Cell2D<T> se(midu, cell.upperU, cell.lowerV, midv, cell.level -1);
+        Cell2D<T> nw(cell.lowerU, midu, midv, cell.upperV, cell.level - 1);
+        Cell2D<T> ne(midu, cell.upperU, midv, cell.upperV, cell.level - 1);
+        std::vector<Cell2D<T>> subcells{sw, se, nw, ne};
         for(auto& c : subcells) {
             c.parent = &cell;
             cell.children.push_back(&c);
@@ -95,27 +98,29 @@ namespace bemquad {
     /// Generate a subcell that is formed from the 'centre' of the
     /// interval of the given cell. It is used to check for singularities
     /// that may lie near the midpoint of the cell.
-    Cell2D centreSubcell(const Cell2D& cell)
+    template<typename T>
+    Cell2D<T> centreSubcell(const Cell2D<T>& cell)
     {
         assert(cell.level > 0);
         const double u_h = 0.25 * (cell.upperU - cell.lowerU);
         const double v_h = 0.25 * (cell.upperV - cell.lowerV);
-        return Cell2D(cell.lowerU + u_h,
-                      cell.upperU - u_h,
-                      cell.lowerV + v_h,
-                      cell.upperV - v_h,
-                      cell.level - 1);
+        return Cell2D<T>(cell.lowerU + u_h,
+                         cell.upperU - u_h,
+                         cell.lowerV + v_h,
+                         cell.upperV - v_h,
+                         cell.level - 1);
     }
     
     /// Return the set of cell that correspond to the set intersection of the given cell
     /// and the 'centre' sub cell defined by the function above
-    std::vector<Cell2D> rimCells(const Cell2D& cell)
+    template<typename T>
+    std::vector<Cell2D<T>> rimCells(const Cell2D<T>& cell)
     {
         const uint ncell = 4;
         const double u_h = 1.0 / ncell * (cell.upperU - cell.lowerU);
         const double v_h = 1.0 / ncell * (cell.upperV - cell.lowerV);
 
-        std::vector<Cell2D> rvec;
+        std::vector<Cell2D<T>> rvec;
         for(uint i = 0; i < ncell; ++i) {
             const double lower_u = cell.lowerU + i * u_h;
             const double upper_u = lower_u + u_h;
@@ -124,14 +129,15 @@ namespace bemquad {
                     continue;
                 const double lower_v = cell.lowerV + j * v_h;
                 const double upper_v = lower_v + v_h;
-                rvec.push_back(Cell2D(lower_u, upper_u, lower_v, upper_v, cell.level -1));
+                rvec.push_back(Cell2D<T>(lower_u, upper_u, lower_v, upper_v, cell.level -1));
             }
         }
         return rvec;
     }
     
     /// Calculate the ratio of cell areas according to numer / denom
-    double ratio(const Cell2D& numer, const Cell2D& denom)
+    template<typename T>
+    double ratio(const Cell2D<T>& numer, const Cell2D<T>& denom)
     {
         return ((numer.upperU - numer.lowerU) * (numer.upperV - numer.lowerV))
         / ((denom.upperU - denom.lowerU) * (denom.upperV - denom.lowerV));
@@ -248,15 +254,15 @@ namespace bemquad {
         { return scalePts(clenshawRule(order), a, b); }
         
         /// Recursively evaluate the cell until global convergence is acheived.
-        void globalRecursiveEval(Cell2D& cell);
+        void globalRecursiveEval(Cell2D<T>& cell);
         
         /// Recursively evaluate the cell until local convergence is acheived.
-        void localRecursiveEval(Cell2D& cell);
+        void localRecursiveEval(Cell2D<T>& cell);
         
         /// Given two cell of differing levels of quadrature order, perform
         /// adaptive h-refinement until convergence is achieved.
-        void adaptiveRecursiveEval(Cell2D& coarse,
-                                   Cell2D& fine);
+        void adaptiveRecursiveEval(Cell2D<T>& coarse,
+                                   Cell2D<T>& fine);
         
         /// Get the function value at the given quadrature point. Uses cache.
         T evalFunc(const double u, const double v)
@@ -282,17 +288,18 @@ namespace bemquad {
                const double d);
         
         /// Evaluate the cell, filling in the appropriate integral value.
-        void evalCell(Cell2D& cell)
+        void evalCell(Cell2D<T>& cell)
         {
             cell.value = eval(cell.level, cell.lowerU, cell.upperU, cell.lowerV, cell.upperV);
         }
         
-        T relative_error(T a, T b)
+        /// Function to compute relative error. Takes account for scenario when a and/or b is zero.
+        double relative_error(T a, T b)
         {
             if((std::abs(a) < DEFAULT_TOLERANCE) && (std::abs(b) < DEFAULT_TOLERANCE))
-                return std::max(std::abs((a - b) / (1.0 + a)), std::abs((a - b) / (1.0 + b)));
+                return std::max(std::abs((a - b)) / std::abs(1.0 + a), std::abs((a - b)) / std::abs(1.0 + b));
             else
-                return std::max(std::abs((a - b) / (a)), std::abs((a - b) / (b)));
+                return std::max(std::abs((a - b)) / std::abs(a), std::abs((a - b)) / std::abs(b));
         }
         
         /// Lower limit, u-direction
@@ -311,13 +318,13 @@ namespace bemquad {
         void setPreviousResult(const T& r) { mPreviousResult = r; }
         
         /// Previous result getter
-        double previousResult() const { return mPreviousResult; }
+        T previousResult() const { return mPreviousResult; }
         
         /// Current result setter
         void setCurrentResult(const T& r) { mCurrentResult = r; }
         
         /// Current result setter
-        double currentResult() const { return mCurrentResult; }
+        T currentResult() const { return mCurrentResult; }
         
         /// u-coordinate interval
         std::pair<double, double> mUInterval;
@@ -367,9 +374,9 @@ namespace bemquad {
     {
         // Perform one subdivision to deal with singularity at midpoint case
         const uint base_level = 1;
-        Cell2D base(lowerU(), upperU(), lowerV(), upperV(), base_level);
+        Cell2D<T> base(lowerU(), upperU(), lowerV(), upperV(), base_level);
         auto subcells = subdivide(base);
-        double integral = 0.0;
+        T integral = 0.0;
         for(auto & c : subcells) {
             evalCell(c);
             integral += c.value;
@@ -388,23 +395,13 @@ namespace bemquad {
     }
     
     template<typename T, typename F>
-    void AdaptiveClenshaw2DIntegrator<T,F>::globalRecursiveEval(Cell2D& cell)
+    void AdaptiveClenshaw2DIntegrator<T,F>::globalRecursiveEval(Cell2D<T>& cell)
     {
         if(cell.level > maxLevelN())
-        {
-            /// We haven't converged, so let's try integrating with a polar transformation
-            /// using an approximate nearest point.
-            
-            /// TODO: write a function for determining the nearest point (within a certain tolerance)
-            /// and then pass this approximate point to the polar version of this integrator.
-            
-            /// Actually, I don't want to call it here - instead, I want to call the polar transformation when
-            /// the number of local subdivisions haas reached a maximum.
-            
             throw std::runtime_error("Reaced maximum number of levels in adaptive quadrature.");
-        }
+        
         setPreviousResult(currentResult());
-        Cell2D next_cell = cell; // first copy, then modify
+        Cell2D<T> next_cell = cell; // first copy, then modify
         next_cell.level += 1;
         evalCell(next_cell);
         setCurrentResult(currentResult() - cell.value + next_cell.value);
@@ -429,8 +426,8 @@ namespace bemquad {
     }
     
     template<typename T, typename F>
-    void AdaptiveClenshaw2DIntegrator<T,F>::adaptiveRecursiveEval(Cell2D& coarse,
-                                                                  Cell2D& fine)
+    void AdaptiveClenshaw2DIntegrator<T,F>::adaptiveRecursiveEval(Cell2D<T>& coarse,
+                                                                  Cell2D<T>& fine)
     {
         assert(equalRange(coarse, fine)); // make sure the ranges are equal
         auto coarse_vec = subdivide(coarse);
@@ -445,8 +442,8 @@ namespace bemquad {
         // now check for error differences between subcells
         double min_error = std::numeric_limits<double>::max();
         std::vector<double> error_vec;
-        double finecell_sum = 0.0;
-        double coarsecell_sum = 0.0;
+        T finecell_sum = 0.0;
+        T coarsecell_sum = 0.0;
         for(uint c = 0; c < 4; ++c) {
             const double error = std::abs(coarse_vec[c].value - fine_vec[c].value) / std::abs(coarse_vec[c].value);
             //const double error = relative_error(coarse_vec[c].value, fine_vec[c].value);
@@ -479,14 +476,14 @@ namespace bemquad {
             
             // let's see if the error on the current cell is much larger than
             // the error seen in its near neighbours
-            Cell2D* parent = fine.parent;
+            Cell2D<T>* parent = fine.parent;
             double cell_error = 0.0;
             double min_e = std::numeric_limits<double>::max();
             for(uint i = 0; i < 4; ++i) {
-                Cell2D c = *parent->children[i];
+                Cell2D<T> c = *parent->children[i];
                 c.level = coarse.level;
                 evalCell(c);
-                Cell2D f = c;
+                Cell2D<T> f = c;
                 f.level = fine.level;
                 evalCell(f);
                 //const double e = relative_error(c.value, f.value);
@@ -554,7 +551,7 @@ namespace bemquad {
     }
     
     template<typename T, typename F>
-    void AdaptiveClenshaw2DIntegrator<T,F>::localRecursiveEval(Cell2D& cell)
+    void AdaptiveClenshaw2DIntegrator<T,F>::localRecursiveEval(Cell2D<T>& cell)
     {
         // the idea is that we recursively refine and only terminate when 'local' convergence
         // is achieved.
@@ -562,13 +559,13 @@ namespace bemquad {
             throw std::runtime_error("Reaced maximum number of levels in adaptive quadrature.");
         
         setPreviousResult(currentResult());
-        Cell2D next_cell = cell;
+        Cell2D<T> next_cell = cell;
         next_cell.level += 1;
         evalCell(next_cell);
         setCurrentResult(currentResult() - cell.value + next_cell.value);
         
         // now check for local convergence
-        const double error_w = ratio(next_cell, Cell2D(lowerU(), upperU(), lowerV(), upperV()));
+        const double error_w = ratio(next_cell, Cell2D<T>(lowerU(), upperU(), lowerV(), upperV()));
         if(std::abs(next_cell.value - cell.value) / std::abs(cell.value) < error_w * tolerance()) {
             //std::cout << "local convergence achieved\n";
             return;
