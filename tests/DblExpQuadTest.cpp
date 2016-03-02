@@ -24,7 +24,7 @@ double f(const double x)
 	//return std::exp(std::cos(0.01 * x)) / (x + 100.0);
 	//return 1.0 / (x + 100.0);
     //return std::exp(std::cos(20.0 * x)) * 1.0 / (20.0 + x);
-    return 1.0 / std::pow((1.1 - x), 2.0);
+    return 1.0 / std::pow((1.004 - x), 2.0);
 }
 
 double ft(const double x)
@@ -34,7 +34,7 @@ double ft(const double x)
 	//return std::exp( std::cos(0.01 * x)) / (x + 100.0);
 	//return 1.0 / (100.0 + x);
 	//return std::exp(std::cos(20.0 * x)) * 1.0 / (20.0 + x);
-    return 1.0 / std::pow((1.1 - x), 2.0);
+    return 1.0 / std::pow((1.004 - x), 2.0);
 }
 
 

@@ -20,20 +20,20 @@ struct Functor
     {
         GLOBAL_FUNC_CALLS += 1;
         //return 1.0;
-        return std::exp(std::cos(100.0* PI * x)) * 1.0 / (std::pow((1.004 - x),2));
+        //return std::exp(std::cos(100.0* PI * x)) * 1.0 / (std::pow((1.004 - x),2));
         //return 1.0 / std::pow((300.0 - x), 2.0);
-        //return 1.0 / std::pow((1.004 -x), 2);
+        return 1.0 / std::pow((1.004 -x), 2);
     }
 };
 
 double error(const double x)
 {
-  //  const double exact = 249.500998003992;
+    const double exact = 249.500998003992;
    // const double exact = 2.5321317555040;
     //const double exact = 2.6020035998653;
 //   const double exact = 94.732334765391;
   //const double exact = 611.71659692811;
-    const double exact = 416.84975333499;
+//    const double exact = 416.84975333499;
    //const double exact = 421.67517121718;
         //const double exact = 14.0979937514716;
     return std::abs(exact - x) / std::abs(exact);
